@@ -194,6 +194,16 @@ public final class HallowedSavedData extends SavedData {
         return data;
     }
 
+    /**
+     * Replaces the record for {@code uuid} with {@code updated} and calls
+     * {@link #setDirty()}.  Used by the resurrection engine to set flags on
+     * offline players (e.g. {@code resurrectOnLogin}).
+     */
+    public synchronized void updateRecord(UUID uuid, HallowedRecord updated) {
+        records.put(uuid, updated);
+        setDirty();
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
@@ -202,7 +212,7 @@ public final class HallowedSavedData extends SavedData {
         HallowedConfig cfg = HallowedConfig.SERVER;
         int base = cfg.getBaseCost();
         if (cfg.isScalingEnabled()) {
-            base += player.experienceLevel * cfg.getLevelMultiplier();
+            base += (player.experienceLevel * cfg.getLevelMultiplier()) / cfg.getFactorNumber();
         }
         return base;
     }

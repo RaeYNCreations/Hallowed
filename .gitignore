@@ -45,3 +45,6 @@ bin/
 # Run directories
 run/
 runs/
+
+# Local dependency JARs (obtained manually — see README.md)
+libs/*.jar

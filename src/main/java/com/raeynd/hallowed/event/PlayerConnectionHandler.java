@@ -3,6 +3,7 @@ package com.raeynd.hallowed.event;
 import com.mojang.logging.LogUtils;
 import com.raeynd.hallowed.data.HallowedAttachments;
 import com.raeynd.hallowed.data.HallowedPlayerData;
+import com.raeynd.hallowed.data.HallowedRecord;
 import com.raeynd.hallowed.data.HallowedSavedData;
 import com.raeynd.hallowed.network.HallowedNetworking;
 import net.minecraft.server.level.ServerLevel;
@@ -35,8 +36,13 @@ public final class PlayerConnectionHandler {
             LOGGER.info("[Hallowed] {} logged in while Hallowed — re-enforcing restrictions.",
                     player.getGameProfile().getName());
 
-            // Check resurrectOnLogin flag
-            if (data.isResurrectOnLogin()) {
+            // Check resurrectOnLogin on both the attachment and the HallowedRecord.
+            // The HallowedRecord flag is set when another player resurrects an offline target.
+            HallowedRecord record = savedData.getHallowedRecord(player.getUUID());
+            boolean shouldResurrect = data.isResurrectOnLogin()
+                    || (record != null && record.isResurrectOnLogin());
+
+            if (shouldResurrect) {
                 LOGGER.info("[Hallowed] resurrectOnLogin flag set for {} — resurrecting on login.",
                         player.getGameProfile().getName());
                 resurrectPlayer(player, savedData);
