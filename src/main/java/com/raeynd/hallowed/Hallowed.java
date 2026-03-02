@@ -3,6 +3,7 @@ package com.raeynd.hallowed;
 import com.mojang.logging.LogUtils;
 import com.raeynd.hallowed.bonfire.BonfireInteractionHandler;
 import com.raeynd.hallowed.command.HallowedCommand;
+import com.raeynd.hallowed.compat.YouDiedCompat;
 import com.raeynd.hallowed.data.HallowedAttachments;
 import com.raeynd.hallowed.event.DeathHandler;
 import com.raeynd.hallowed.event.PlayerConnectionHandler;
@@ -49,6 +50,9 @@ public final class Hallowed {
 
         // Register commands
         NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
+
+        // Detect optional You Died integration
+        YouDiedCompat.init();
 
         LOGGER.info("[Hallowed] Initialisation complete.");
     }

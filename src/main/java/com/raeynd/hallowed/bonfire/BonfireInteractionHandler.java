@@ -15,6 +15,10 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import org.slf4j.Logger;
 
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * Handles player interactions with Bonfire blocks:
  *
@@ -34,6 +38,12 @@ public final class BonfireInteractionHandler {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
+    /** Minimum milliseconds between resurrection attempts per player. */
+    private static final long COOLDOWN_MS = 1_000L;
+
+    /** Tracks the last resurrection attempt timestamp per player UUID. */
+    private final Map<UUID, Long> cooldowns = new ConcurrentHashMap<>();
+
     @SubscribeEvent
     public void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
         Player player = event.getEntity();
@@ -50,6 +60,15 @@ public final class BonfireInteractionHandler {
         if (isHallowed) {
             // Hallowed player touches a lit Bonfire → attempt self-resurrection
             event.setCanceled(true);
+
+            UUID uuid = player.getUUID();
+            long now = System.currentTimeMillis();
+            if (now - cooldowns.getOrDefault(uuid, 0L) < COOLDOWN_MS) {
+                LOGGER.debug("[Hallowed] Rate-limited resurrection attempt from {}.", player.getGameProfile().getName());
+                return;
+            }
+            cooldowns.put(uuid, now);
+
             ResurrectionResult result = ResurrectionEngine.attemptSelfResurrection(serverPlayer);
             LOGGER.debug("[Hallowed] Self-resurrection attempt for {} at bonfire {}: {}",
                     player.getGameProfile().getName(), event.getPos(), result);

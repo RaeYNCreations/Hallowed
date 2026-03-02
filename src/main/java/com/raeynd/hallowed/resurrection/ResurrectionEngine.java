@@ -10,11 +10,13 @@ import com.raeynd.hallowed.data.HallowedPlayerData;
 import com.raeynd.hallowed.data.HallowedRecord;
 import com.raeynd.hallowed.data.HallowedSavedData;
 import com.raeynd.hallowed.network.HallowedNetworking;
+import com.raeynd.hallowed.util.HallowedAudit;
 import io.github.lightman314.lightmanscurrency.api.money.value.MoneyValue;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
 
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -41,51 +43,79 @@ public final class ResurrectionEngine {
      */
     public static ResurrectionResult attemptSelfResurrection(ServerPlayer player) {
         HallowedSavedData savedData = HallowedSavedData.get(player.serverLevel());
+        UUID uuid = player.getUUID();
 
-        synchronized (savedData) {
-            UUID uuid = player.getUUID();
+        // 3E: Prevent concurrent resurrection attempts
+        if (!savedData.tryLock(uuid)) {
+            player.sendSystemMessage(Component.translatable("hallowed.resurrection.fail.concurrent"));
+            HallowedAudit.logResurrectionFailed(player.getGameProfile().getName(), uuid,
+                    "CONCURRENT_ATTEMPT", "self");
+            return ResurrectionResult.CONCURRENT_ATTEMPT;
+        }
 
-            if (!savedData.isHallowed(uuid)) {
-                return ResurrectionResult.NOT_HALLOWED;
+        try {
+            synchronized (savedData) {
+                if (!savedData.isHallowed(uuid)) {
+                    return ResurrectionResult.NOT_HALLOWED;
+                }
+
+                if (!BonfireHelper.isPlayerAtBonfire(player)) {
+                    return ResurrectionResult.NOT_AT_BONFIRE;
+                }
+
+                HallowedRecord record = savedData.getHallowedRecord(uuid);
+                if (record == null) {
+                    return ResurrectionResult.NOT_HALLOWED;
+                }
+
+                // Check resurrection delay
+                long elapsedSeconds = (System.currentTimeMillis() - record.getTimeOfDeath()) / 1000L;
+                long requiredSeconds = HallowedConfig.SERVER.getResurrectionDelaySeconds();
+                if (elapsedSeconds < requiredSeconds) {
+                    long remaining = requiredSeconds - elapsedSeconds;
+                    player.sendSystemMessage(Component.translatable(
+                            "hallowed.resurrection.fail.delay", remaining));
+                    HallowedAudit.logResurrectionFailed(player.getGameProfile().getName(), uuid,
+                            "DELAY_NOT_MET", "self");
+                    return ResurrectionResult.DELAY_NOT_MET;
+                }
+
+                MoneyValue cost = ResurrectionCostCalculator.calculateSelfCostAsValue(record.getXpAtDeath());
+
+                // 3D: Mark pending before withdrawing funds
+                savedData.setPendingResurrection(uuid, true);
+
+                // Attempt withdrawal (internally simulates first)
+                if (!CurrencyService.withdrawFunds(player, cost)) {
+                    savedData.setPendingResurrection(uuid, false);
+                    player.sendSystemMessage(Component.translatable(
+                            "hallowed.resurrection.fail.insufficient_funds", cost.getString(0)));
+                    HallowedAudit.logResurrectionFailed(player.getGameProfile().getName(), uuid,
+                            "INSUFFICIENT_FUNDS", "self");
+                    return ResurrectionResult.INSUFFICIENT_FUNDS;
+                }
+
+                // Find the bonfire position for audit logging
+                Optional<net.minecraft.core.BlockPos> nearbyBonfire = BonfireHelper.findNearbyBonfire(player);
+
+                // Resurrection
+                savedData.markResurrected(uuid);
+                player.setData(HallowedAttachments.HALLOWED_DATA, HallowedPlayerData.DEFAULT);
+                player.setHealth(player.getMaxHealth());
+                HallowedNetworking.syncToPlayer(player);
+
+                player.sendSystemMessage(Component.translatable("hallowed.resurrection.success.self"));
+
+                HallowedAudit.logCoinTransaction(player.getGameProfile().getName(), uuid,
+                        record.getCoinsRequired(), "self", player.getGameProfile().getName(),
+                        nearbyBonfire.orElse(player.blockPosition()));
+                HallowedAudit.logStateTransition(player.getGameProfile().getName(), uuid,
+                        "HALLOWED", "ALIVE", "self-resurrection");
+                LOGGER.info("[Hallowed] {} self-resurrected at bonfire. Cost: {}",
+                        player.getGameProfile().getName(), cost.getString(0));
             }
-
-            if (!BonfireHelper.isPlayerAtBonfire(player)) {
-                return ResurrectionResult.NOT_AT_BONFIRE;
-            }
-
-            HallowedRecord record = savedData.getHallowedRecord(uuid);
-            if (record == null) {
-                return ResurrectionResult.NOT_HALLOWED;
-            }
-
-            // Check resurrection delay
-            long elapsedSeconds = (System.currentTimeMillis() - record.getTimeOfDeath()) / 1000L;
-            long requiredSeconds = HallowedConfig.SERVER.getResurrectionDelaySeconds();
-            if (elapsedSeconds < requiredSeconds) {
-                long remaining = requiredSeconds - elapsedSeconds;
-                player.sendSystemMessage(Component.translatable(
-                        "hallowed.resurrection.fail.delay", remaining));
-                return ResurrectionResult.DELAY_NOT_MET;
-            }
-
-            MoneyValue cost = ResurrectionCostCalculator.calculateSelfCostAsValue(record.getXpAtDeath());
-
-            // Attempt withdrawal (internally simulates first)
-            if (!CurrencyService.withdrawFunds(player, cost)) {
-                player.sendSystemMessage(Component.translatable(
-                        "hallowed.resurrection.fail.insufficient_funds", cost.getString(0)));
-                return ResurrectionResult.INSUFFICIENT_FUNDS;
-            }
-
-            // Resurrection
-            savedData.markResurrected(uuid);
-            player.setData(HallowedAttachments.HALLOWED_DATA, HallowedPlayerData.DEFAULT);
-            player.setHealth(player.getMaxHealth());
-            HallowedNetworking.syncToPlayer(player);
-
-            player.sendSystemMessage(Component.translatable("hallowed.resurrection.success.self"));
-            LOGGER.info("[Hallowed] {} self-resurrected at bonfire. Cost: {}",
-                    player.getGameProfile().getName(), cost.getString(0));
+        } finally {
+            savedData.unlock(uuid);
         }
 
         return ResurrectionResult.SUCCESS;
@@ -103,57 +133,84 @@ public final class ResurrectionEngine {
     public static ResurrectionResult attemptOtherResurrection(ServerPlayer resurrector, UUID targetUUID) {
         HallowedSavedData savedData = HallowedSavedData.get(resurrector.serverLevel());
 
-        synchronized (savedData) {
-            if (!savedData.isHallowed(targetUUID)) {
-                return ResurrectionResult.ALREADY_ALIVE;
+        // 3E: Prevent concurrent resurrection attempts for the same target
+        if (!savedData.tryLock(targetUUID)) {
+            resurrector.sendSystemMessage(Component.translatable("hallowed.resurrection.fail.concurrent"));
+            HallowedAudit.logResurrectionFailed(resurrector.getGameProfile().getName(), resurrector.getUUID(),
+                    "CONCURRENT_ATTEMPT", targetUUID.toString());
+            return ResurrectionResult.CONCURRENT_ATTEMPT;
+        }
+
+        try {
+            synchronized (savedData) {
+                if (!savedData.isHallowed(targetUUID)) {
+                    return ResurrectionResult.ALREADY_ALIVE;
+                }
+
+                if (!BonfireHelper.isPlayerAtBonfire(resurrector)) {
+                    return ResurrectionResult.NOT_AT_BONFIRE;
+                }
+
+                HallowedRecord record = savedData.getHallowedRecord(targetUUID);
+                if (record == null) {
+                    return ResurrectionResult.ALREADY_ALIVE;
+                }
+
+                MoneyValue cost = ResurrectionCostCalculator.calculateOtherCostAsValue(record.getXpAtDeath());
+
+                // 3D: Mark pending before withdrawing funds
+                savedData.setPendingResurrection(targetUUID, true);
+
+                // Attempt withdrawal from the resurrector's funds
+                if (!CurrencyService.withdrawFunds(resurrector, cost)) {
+                    savedData.setPendingResurrection(targetUUID, false);
+                    resurrector.sendSystemMessage(Component.translatable(
+                            "hallowed.resurrection.fail.insufficient_funds", cost.getString(0)));
+                    HallowedAudit.logResurrectionFailed(resurrector.getGameProfile().getName(), resurrector.getUUID(),
+                            "INSUFFICIENT_FUNDS", record.getUsername());
+                    return ResurrectionResult.INSUFFICIENT_FUNDS;
+                }
+
+                // Find the bonfire position for audit logging
+                Optional<net.minecraft.core.BlockPos> nearbyBonfire = BonfireHelper.findNearbyBonfire(resurrector);
+
+                // Look up the target player on the server
+                ServerPlayer target = resurrector.getServer().getPlayerList().getPlayer(targetUUID);
+
+                if (target != null) {
+                    // Target is online — resurrect immediately
+                    savedData.markResurrected(targetUUID);
+                    target.setData(HallowedAttachments.HALLOWED_DATA, HallowedPlayerData.DEFAULT);
+                    target.setHealth(target.getMaxHealth());
+                    HallowedNetworking.syncToPlayer(target);
+
+                    target.sendSystemMessage(Component.translatable(
+                            "hallowed.resurrection.success.target",
+                            resurrector.getGameProfile().getName()));
+                    resurrector.sendSystemMessage(Component.translatable(
+                            "hallowed.resurrection.success.other",
+                            record.getUsername()));
+                    HallowedAudit.logStateTransition(record.getUsername(), targetUUID,
+                            "HALLOWED", "ALIVE", "other-resurrection by " + resurrector.getGameProfile().getName());
+                } else {
+                    // Target is offline — set the resurrect-on-login flag
+                    // (pendingResurrection cleared by markResurrected path on login)
+                    HallowedRecord flagged = record.withResurrectOnLogin(true).withPendingResurrection(false);
+                    savedData.updateRecord(targetUUID, flagged);
+
+                    resurrector.sendSystemMessage(Component.translatable(
+                            "hallowed.resurrection.offline", record.getUsername()));
+                }
+
+                HallowedAudit.logCoinTransaction(resurrector.getGameProfile().getName(), resurrector.getUUID(),
+                        record.getCoinsRequired(), "other", record.getUsername(),
+                        nearbyBonfire.orElse(resurrector.blockPosition()));
+                LOGGER.info("[Hallowed] {} resurrected {} (target online={}). Cost: {}",
+                        resurrector.getGameProfile().getName(), record.getUsername(),
+                        target != null, cost.getString(0));
             }
-
-            if (!BonfireHelper.isPlayerAtBonfire(resurrector)) {
-                return ResurrectionResult.NOT_AT_BONFIRE;
-            }
-
-            HallowedRecord record = savedData.getHallowedRecord(targetUUID);
-            if (record == null) {
-                return ResurrectionResult.ALREADY_ALIVE;
-            }
-
-            MoneyValue cost = ResurrectionCostCalculator.calculateOtherCostAsValue(record.getXpAtDeath());
-
-            // Attempt withdrawal from the resurrector's funds
-            if (!CurrencyService.withdrawFunds(resurrector, cost)) {
-                resurrector.sendSystemMessage(Component.translatable(
-                        "hallowed.resurrection.fail.insufficient_funds", cost.getString(0)));
-                return ResurrectionResult.INSUFFICIENT_FUNDS;
-            }
-
-            // Look up the target player on the server
-            ServerPlayer target = resurrector.getServer().getPlayerList().getPlayer(targetUUID);
-
-            if (target != null) {
-                // Target is online — resurrect immediately
-                savedData.markResurrected(targetUUID);
-                target.setData(HallowedAttachments.HALLOWED_DATA, HallowedPlayerData.DEFAULT);
-                target.setHealth(target.getMaxHealth());
-                HallowedNetworking.syncToPlayer(target);
-
-                target.sendSystemMessage(Component.translatable(
-                        "hallowed.resurrection.success.target",
-                        resurrector.getGameProfile().getName()));
-                resurrector.sendSystemMessage(Component.translatable(
-                        "hallowed.resurrection.success.other",
-                        record.getUsername()));
-            } else {
-                // Target is offline — set the resurrect-on-login flag
-                HallowedRecord flagged = record.withResurrectOnLogin(true);
-                savedData.updateRecord(targetUUID, flagged);
-
-                resurrector.sendSystemMessage(Component.translatable(
-                        "hallowed.resurrection.offline", record.getUsername()));
-            }
-
-            LOGGER.info("[Hallowed] {} resurrected {} (target online={}). Cost: {}",
-                    resurrector.getGameProfile().getName(), record.getUsername(),
-                    target != null, cost.getString(0));
+        } finally {
+            savedData.unlock(targetUUID);
         }
 
         return ResurrectionResult.SUCCESS;

@@ -33,6 +33,12 @@ public final class HallowedSavedData extends SavedData {
     /** Thread-safe storage keyed by player UUID. */
     private final Map<UUID, HallowedRecord> records = new ConcurrentHashMap<>();
 
+    /**
+     * UUIDs that are currently mid-resurrection.  Used to prevent concurrent
+     * resurrection attempts for the same target.
+     */
+    private final Set<UUID> pendingLocks = ConcurrentHashMap.newKeySet();
+
     // -------------------------------------------------------------------------
     // Factory / access
     // -------------------------------------------------------------------------
@@ -140,6 +146,7 @@ public final class HallowedSavedData extends SavedData {
     private static final String TAG_COINS = "coins_required";
     private static final String TAG_XP = "xp_at_death";
     private static final String TAG_RESURRECT = "resurrect_on_login";
+    private static final String TAG_PENDING = "pending_resurrection";
 
     @Override
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
@@ -157,6 +164,7 @@ public final class HallowedSavedData extends SavedData {
             entry.putInt(TAG_COINS, r.getCoinsRequired());
             entry.putInt(TAG_XP, r.getXpAtDeath());
             entry.putBoolean(TAG_RESURRECT, r.isResurrectOnLogin());
+            entry.putBoolean(TAG_PENDING, r.isPendingResurrection());
             list.add(entry);
         }
         tag.put(TAG_RECORDS, list);
@@ -182,15 +190,35 @@ public final class HallowedSavedData extends SavedData {
                 int coins = entry.getInt(TAG_COINS);
                 int xp = entry.getInt(TAG_XP);
                 boolean resurrect = entry.getBoolean(TAG_RESURRECT);
+                boolean pending = entry.getBoolean(TAG_PENDING);
 
                 HallowedRecord record = new HallowedRecord(uuid, username, x, y, z, dim,
-                        timeOfDeath, online, coins, xp, resurrect);
+                        timeOfDeath, online, coins, xp, resurrect, pending);
                 data.records.put(uuid, record);
             } catch (Exception e) {
                 LOGGER.warn("[Hallowed] Failed to load record at index {}: {}", i, e.getMessage());
             }
         }
         LOGGER.info("[Hallowed] Loaded {} Hallowed player record(s).", data.records.size());
+
+        // Recover any resurrections that were in-flight when the server crashed.
+        // If pendingResurrection=true, the funds were already withdrawn so we must
+        // complete the resurrection to avoid double-charging on the next attempt.
+        List<UUID> toComplete = new ArrayList<>();
+        for (HallowedRecord r : data.records.values()) {
+            if (r.isPendingResurrection()) {
+                toComplete.add(r.getUuid());
+            }
+        }
+        for (UUID uuid : toComplete) {
+            LOGGER.warn("[Hallowed] Completing pending resurrection for {} after server restart.",
+                    data.records.get(uuid).getUsername());
+            data.records.remove(uuid);
+        }
+        if (!toComplete.isEmpty()) {
+            data.setDirty();
+        }
+
         return data;
     }
 
@@ -202,6 +230,60 @@ public final class HallowedSavedData extends SavedData {
     public synchronized void updateRecord(UUID uuid, HallowedRecord updated) {
         records.put(uuid, updated);
         setDirty();
+    }
+
+    /**
+     * Marks the resurrection as pending (mid-transaction safety).
+     * Called before funds are withdrawn so a crash can be recovered on restart.
+     */
+    public synchronized void setPendingResurrection(UUID uuid, boolean pending) {
+        HallowedRecord record = records.get(uuid);
+        if (record != null) {
+            records.put(uuid, record.withPendingResurrection(pending));
+            setDirty();
+        }
+    }
+
+    /**
+     * Attempts to acquire a resurrection lock for {@code uuid}.
+     *
+     * @return {@code true} if the lock was acquired (no concurrent attempt),
+     *         {@code false} if another resurrection for this UUID is already in progress.
+     */
+    public synchronized boolean tryLock(UUID uuid) {
+        return pendingLocks.add(uuid);
+    }
+
+    /**
+     * Releases the resurrection lock for {@code uuid}.
+     */
+    public synchronized void unlock(UUID uuid) {
+        pendingLocks.remove(uuid);
+    }
+
+    /**
+     * Recalculates resurrection costs for all currently-Hallowed players using
+     * the current config values.  Called after a config reload so cost changes
+     * take effect immediately without requiring a restart.
+     */
+    public synchronized void recalculateAllCosts() {
+        HallowedConfig cfg = HallowedConfig.SERVER;
+        int base = cfg.getBaseCost();
+        boolean scaling = cfg.isScalingEnabled();
+        int multiplier = cfg.getLevelMultiplier();
+        int factor = cfg.getFactorNumber();
+
+        for (Map.Entry<UUID, HallowedRecord> entry : records.entrySet()) {
+            HallowedRecord r = entry.getValue();
+            int newCost = base;
+            if (scaling) {
+                newCost += (r.getXpAtDeath() * multiplier) / factor;
+            }
+            records.put(entry.getKey(), r.withCoinsRequired(newCost));
+        }
+        setDirty();
+        LOGGER.info("[Hallowed] Recalculated costs for {} Hallowed player(s) after config change.",
+                records.size());
     }
 
     // -------------------------------------------------------------------------

@@ -26,6 +26,7 @@ public final class HallowedRecord {
     private final int coinsRequired;
     private final int xpAtDeath;
     private final boolean resurrectOnLogin;
+    private final boolean pendingResurrection;
 
     public HallowedRecord(
             UUID uuid,
@@ -39,6 +40,23 @@ public final class HallowedRecord {
             int coinsRequired,
             int xpAtDeath,
             boolean resurrectOnLogin) {
+        this(uuid, username, deathX, deathY, deathZ, deathDimension,
+                timeOfDeath, currentlyOnline, coinsRequired, xpAtDeath, resurrectOnLogin, false);
+    }
+
+    public HallowedRecord(
+            UUID uuid,
+            String username,
+            int deathX,
+            int deathY,
+            int deathZ,
+            ResourceKey<Level> deathDimension,
+            long timeOfDeath,
+            boolean currentlyOnline,
+            int coinsRequired,
+            int xpAtDeath,
+            boolean resurrectOnLogin,
+            boolean pendingResurrection) {
         this.uuid = uuid;
         this.username = username;
         this.deathX = deathX;
@@ -50,6 +68,7 @@ public final class HallowedRecord {
         this.coinsRequired = coinsRequired;
         this.xpAtDeath = xpAtDeath;
         this.resurrectOnLogin = resurrectOnLogin;
+        this.pendingResurrection = pendingResurrection;
     }
 
     // -------------------------------------------------------------------------
@@ -68,6 +87,7 @@ public final class HallowedRecord {
     public int getCoinsRequired() { return coinsRequired; }
     public int getXpAtDeath() { return xpAtDeath; }
     public boolean isResurrectOnLogin() { return resurrectOnLogin; }
+    public boolean isPendingResurrection() { return pendingResurrection; }
 
     // -------------------------------------------------------------------------
     // Wither-style mutators (return new instances)
@@ -75,16 +95,21 @@ public final class HallowedRecord {
 
     public HallowedRecord withCurrentlyOnline(boolean online) {
         return new HallowedRecord(uuid, username, deathX, deathY, deathZ, deathDimension,
-                timeOfDeath, online, coinsRequired, xpAtDeath, resurrectOnLogin);
+                timeOfDeath, online, coinsRequired, xpAtDeath, resurrectOnLogin, pendingResurrection);
     }
 
     public HallowedRecord withResurrectOnLogin(boolean flag) {
         return new HallowedRecord(uuid, username, deathX, deathY, deathZ, deathDimension,
-                timeOfDeath, currentlyOnline, coinsRequired, xpAtDeath, flag);
+                timeOfDeath, currentlyOnline, coinsRequired, xpAtDeath, flag, pendingResurrection);
     }
 
     public HallowedRecord withCoinsRequired(int coins) {
         return new HallowedRecord(uuid, username, deathX, deathY, deathZ, deathDimension,
-                timeOfDeath, currentlyOnline, coins, xpAtDeath, resurrectOnLogin);
+                timeOfDeath, currentlyOnline, coins, xpAtDeath, resurrectOnLogin, pendingResurrection);
+    }
+
+    public HallowedRecord withPendingResurrection(boolean pending) {
+        return new HallowedRecord(uuid, username, deathX, deathY, deathZ, deathDimension,
+                timeOfDeath, currentlyOnline, coinsRequired, xpAtDeath, resurrectOnLogin, pending);
     }
 }

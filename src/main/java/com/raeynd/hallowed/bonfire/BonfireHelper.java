@@ -1,10 +1,16 @@
 package com.raeynd.hallowed.bonfire;
 
+import com.mojang.logging.LogUtils;
+import com.raeynd.hallowed.data.HallowedAttachments;
+import com.raeynd.hallowed.data.HallowedPlayerData;
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
 
 import java.util.Optional;
 
@@ -22,6 +28,8 @@ public final class BonfireHelper {
 
     /** Radius (in blocks) searched when looking for a nearby lit Bonfire. */
     private static final int BONFIRE_RADIUS = 3;
+
+    private static final Logger LOGGER = LogUtils.getLogger();
 
     private BonfireHelper() {}
 
@@ -71,5 +79,47 @@ public final class BonfireHelper {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Returns {@code true} if the block at {@code pos} in the given {@link ServerLevel}
+     * still exists and is a lit Bonfire tile entity.
+     *
+     * <p>Returns {@code false} if the chunk is not loaded, the block is air, or
+     * it is not a lit Bonfire.
+     */
+    public static boolean isValidLitBonfire(ServerLevel level, BlockPos pos) {
+        if (!level.isLoaded(pos)) return false;
+        BlockEntity be = level.getBlockEntity(pos);
+        if (!(be instanceof com.mango.bonfires.block.entity.BonfireTileEntity bonfire)) return false;
+        return bonfire.isLit();
+    }
+
+    /**
+     * Validates the player's stored last-bonfire reference.
+     *
+     * <p>Reads {@code lastBonfirePos} and {@code lastBonfireDimension} from the
+     * player's attachment, checks whether the bonfire still exists, and clears
+     * the reference if it does not.
+     *
+     * @return {@code true} if the bonfire is still valid, {@code false} if the
+     *         reference was stale (and has been cleared from the attachment).
+     */
+    public static boolean validatePlayerBonfire(ServerPlayer player) {
+        HallowedPlayerData data = player.getData(HallowedAttachments.HALLOWED_DATA);
+        BlockPos pos = data.getLastBonfirePos();
+        ResourceKey<Level> dim = data.getLastBonfireDimension();
+
+        if (pos == null || dim == null) return false;
+
+        ServerLevel targetLevel = player.getServer().getLevel(dim);
+        if (targetLevel == null || !isValidLitBonfire(targetLevel, pos)) {
+            // Clear the stale reference
+            player.setData(HallowedAttachments.HALLOWED_DATA,
+                    data.withLastBonfire(null, null));
+            LOGGER.debug("[Hallowed] Cleared stale bonfire reference for {}.", player.getGameProfile().getName());
+            return false;
+        }
+        return true;
     }
 }

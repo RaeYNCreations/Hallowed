@@ -70,5 +70,14 @@
   "hallowed.config.visual.spectral_rendering": "Spectral Rendering",
   "hallowed.config.hardcore.override": "Override Hardcore",
   "hallowed.config.admin.allow_commands": "Allow Admin Commands",
-  "hallowed.config.compat.you_died": "Enable You Died Integration"
+  "hallowed.config.compat.you_died": "Enable You Died Integration",
+
+  "hallowed.resurrection.success.on_login": "You were resurrected while you were away!",
+  "hallowed.bonfire.destroyed": "Your bonfire was destroyed — respawning at spawn.",
+  "hallowed.resurrection.fail.concurrent": "Another resurrection attempt is already in progress for this player.",
+  "hallowed.dimension.removed": "The dimension you died in no longer exists.",
+  "hallowed.command.reload.recalculated": "Config reloaded. Resurrection costs recalculated for %d Hallowed players.",
+  "hallowed.exploit.rate_limited": "Please wait before attempting another resurrection.",
+  "hallowed.hardcore.intercepted": "Hardcore death intercepted by Hallowed.",
+  "hallowed.you_died.overlay.triggered": "You Died overlay triggered."
 }
