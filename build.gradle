@@ -63,17 +63,14 @@ repositories {
 }
 
 dependencies {
-    // Lightman's Currency (hard dependency)
-    // TODO: Replace with actual maven coordinates when available.
-    // compileOnly "curse.maven:lightmanscurrency-XXXXXX:XXXXXXXX"
-
-    // Bonfires (hard dependency)
-    // TODO: Replace with actual maven coordinates when available.
-    // compileOnly "curse.maven:bonfires-XXXXXX:XXXXXXXX"
-
-    // You Died (optional dependency)
-    // TODO: Replace with actual maven coordinates when available.
-    // compileOnly "curse.maven:youdied-XXXXXX:XXXXXXXX"
+    // External mod dependencies are loaded from the libs/ folder.
+    // Place the required JARs there before compiling.
+    // See README.md for instructions on obtaining each JAR.
+    //
+    // Required: Lightman's Currency — provides MoneyAPI, CoinValue, IMoneyHolder, etc.
+    // Required: Bonfires             — provides BonfireTileEntity, isLit(), etc.
+    // Optional: You Died             — referenced only when present at runtime.
+    compileOnly fileTree(dir: 'libs', include: ['*.jar'])
 }
 
 tasks.withType(ProcessResources).configureEach {

@@ -96,9 +96,27 @@ public final class DeathHandler {
                 LOGGER.debug("[Hallowed] RespawnMode=IN_PLACE — {} stays in place.", player.getGameProfile().getName());
             }
             case LAST_BONFIRE -> {
-                // Phase 2 will handle actual Bonfire lookup.
-                // For now, fall back to bed/worldspawn.
-                teleportToBedOrWorldSpawn(player, level);
+                BlockPos bonfirePos = data.getLastBonfirePos();
+                ResourceKey<Level> bonfireDim = data.getLastBonfireDimension();
+                if (bonfirePos != null && bonfireDim != null) {
+                    ServerLevel targetLevel = level.getServer().getLevel(bonfireDim);
+                    if (targetLevel != null) {
+                        Vec3 pos = Vec3.atCenterOf(bonfirePos);
+                        player.teleportTo(targetLevel, pos.x, pos.y, pos.z,
+                                player.getYRot(), player.getXRot());
+                        LOGGER.info("[Hallowed] Teleported {} to last bonfire at {} in {}.",
+                                player.getGameProfile().getName(), bonfirePos, bonfireDim.location());
+                    } else {
+                        LOGGER.warn("[Hallowed] Last bonfire dimension {} not found for {}, falling back.",
+                                bonfireDim.location(), player.getGameProfile().getName());
+                        teleportToBedOrWorldSpawn(player, level);
+                    }
+                } else {
+                    // Player never used a Bonfire — fall back to bed/worldspawn
+                    LOGGER.debug("[Hallowed] No last bonfire for {} — falling back to bed/worldspawn.",
+                            player.getGameProfile().getName());
+                    teleportToBedOrWorldSpawn(player, level);
+                }
             }
             case BED_OR_WORLDSPAWN -> teleportToBedOrWorldSpawn(player, level);
         }

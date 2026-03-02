@@ -1,11 +1,13 @@
 package com.raeynd.hallowed;
 
 import com.mojang.logging.LogUtils;
+import com.raeynd.hallowed.bonfire.BonfireInteractionHandler;
 import com.raeynd.hallowed.command.HallowedCommand;
 import com.raeynd.hallowed.data.HallowedAttachments;
 import com.raeynd.hallowed.event.DeathHandler;
 import com.raeynd.hallowed.event.PlayerConnectionHandler;
 import com.raeynd.hallowed.event.RestrictionHandler;
+import com.raeynd.hallowed.gui.HallowedMenuTypes;
 import com.raeynd.hallowed.network.HallowedNetworking;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -36,10 +38,14 @@ public final class Hallowed {
         // Register network payloads
         HallowedNetworking.register(modBus);
 
+        // Register menu types
+        HallowedMenuTypes.register(modBus);
+
         // Register server-side game event handlers on the NeoForge event bus
         NeoForge.EVENT_BUS.register(new DeathHandler());
         NeoForge.EVENT_BUS.register(new RestrictionHandler());
         NeoForge.EVENT_BUS.register(new PlayerConnectionHandler());
+        NeoForge.EVENT_BUS.register(new BonfireInteractionHandler());
 
         // Register commands
         NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);

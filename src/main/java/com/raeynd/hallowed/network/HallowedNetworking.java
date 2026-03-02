@@ -42,6 +42,23 @@ public final class HallowedNetworking {
                         (payload, ctx) -> {}
                 )
         );
+
+        // Server → Client: full Hallowed player list for the Resurrection GUI.
+        // Registered here so the packet type is known on both sides; the client
+        // receives list data via the menu extra-data buffer when the GUI opens.
+        registrar.playToClient(
+                ResurrectionListPayload.TYPE,
+                ResurrectionListPayload.STREAM_CODEC,
+                (payload, ctx) ->
+                        LOGGER.debug("[Hallowed] Received resurrection list ({} entries).", payload.entries().size())
+        );
+
+        // Client → Server: request to resurrect a target player
+        registrar.playToServer(
+                ResurrectionRequestPayload.TYPE,
+                ResurrectionRequestPayload.STREAM_CODEC,
+                ResurrectionRequestPayload::handleServer
+        );
     }
 
     /**

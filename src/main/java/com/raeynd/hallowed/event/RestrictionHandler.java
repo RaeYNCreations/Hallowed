@@ -2,6 +2,8 @@ package com.raeynd.hallowed.event;
 
 import com.mojang.logging.LogUtils;
 import com.raeynd.hallowed.HallowedConfig;
+import com.raeynd.hallowed.bonfire.BonfireHelper;
+import com.raeynd.hallowed.currency.CurrencyService;
 import com.raeynd.hallowed.data.HallowedAttachments;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.player.Player;
@@ -49,6 +51,11 @@ public final class RestrictionHandler {
     public void onPlayerInteractBlock(PlayerInteractEvent.RightClickBlock event) {
         Player player = event.getEntity();
         if (player.level().isClientSide()) return;
+
+        // Allow all players (including Hallowed) to interact with lit Bonfires;
+        // BonfireInteractionHandler handles the actual logic for each case.
+        if (BonfireHelper.isLitBonfire(player.level(), event.getPos())) return;
+
         if (!isHallowed(player)) return;
 
         // Allow doors, trapdoors, fence gates, levers, buttons
@@ -92,7 +99,8 @@ public final class RestrictionHandler {
     public void onItemPickup(EntityItemPickupEvent event) {
         Player player = event.getEntity();
         if (!isHallowed(player)) return;
-        // TODO: Allow coin items from Lightman's Currency (Phase 2)
+        // Allow Hallowed players to pick up Lightman's Currency coin items
+        if (CurrencyService.isCoinItem(player, event.getItem().getItem())) return;
         event.setCanceled(true);
         LOGGER.debug("[Hallowed] Blocked item-pickup for {}.", player.getGameProfile().getName());
     }
