@@ -10,6 +10,7 @@ import com.raeynd.hallowed.event.PlayerConnectionHandler;
 import com.raeynd.hallowed.event.RestrictionHandler;
 import com.raeynd.hallowed.gui.HallowedMenuTypes;
 import com.raeynd.hallowed.network.HallowedNetworking;
+import com.raeynd.hallowed.util.HallowedSounds;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
@@ -41,6 +42,9 @@ public final class Hallowed {
 
         // Register menu types
         HallowedMenuTypes.register(modBus);
+
+        // Register custom sounds
+        HallowedSounds.register(modBus);
 
         // Register server-side game event handlers on the NeoForge event bus
         NeoForge.EVENT_BUS.register(new DeathHandler());

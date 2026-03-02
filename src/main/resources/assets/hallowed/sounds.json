@@ -1,0 +1,20 @@
+{
+  "resurrection_success": {
+    "subtitle": "subtitles.hallowed.resurrection_success",
+    "sounds": [
+      {
+        "name": "minecraft:entity.zombie_villager.cure",
+        "type": "event"
+      }
+    ]
+  },
+  "become_hallowed": {
+    "subtitle": "subtitles.hallowed.become_hallowed",
+    "sounds": [
+      {
+        "name": "minecraft:entity.wither.spawn",
+        "type": "event"
+      }
+    ]
+  }
+}

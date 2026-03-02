@@ -37,7 +37,6 @@
   "hallowed.resurrection.fail.insufficient_funds": "Insufficient coins. Required: %s",
   "hallowed.resurrection.fail.delay": "You must wait %d more seconds before you can be resurrected.",
   "hallowed.resurrection.fail.already_alive": "That player is already alive.",
-  "hallowed.resurrection.fail.concurrent": "Another resurrection is already in progress.",
   "hallowed.resurrection.offline": "%s will be resurrected on next login.",
   "hallowed.resurrection.bonfire_registered": "Bonfire registered as respawn point.",
 
@@ -79,5 +78,8 @@
   "hallowed.command.reload.recalculated": "Config reloaded. Resurrection costs recalculated for %d Hallowed players.",
   "hallowed.exploit.rate_limited": "Please wait before attempting another resurrection.",
   "hallowed.hardcore.intercepted": "Hardcore death intercepted by Hallowed.",
-  "hallowed.you_died.overlay.triggered": "You Died overlay triggered."
+  "hallowed.you_died.overlay.triggered": "You Died overlay triggered.",
+
+  "subtitles.hallowed.resurrection_success": "Resurrection complete",
+  "subtitles.hallowed.become_hallowed": "You are now Hallowed"
 }

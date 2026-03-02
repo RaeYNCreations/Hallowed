@@ -1,10 +1,14 @@
 package com.raeynd.hallowed.network;
 
 import com.mojang.logging.LogUtils;
+import com.raeynd.hallowed.HallowedConfig;
+import com.raeynd.hallowed.client.HallowedClientHandlers;
 import com.raeynd.hallowed.data.HallowedAttachments;
 import com.raeynd.hallowed.data.HallowedPlayerData;
 import net.minecraft.server.level.ServerPlayer;
+import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.handling.DirectionalPayloadHandler;
@@ -33,10 +37,12 @@ public final class HallowedNetworking {
                 HallowedSyncPayload.TYPE,
                 HallowedSyncPayload.STREAM_CODEC,
                 new DirectionalPayloadHandler<>(
-                        // Client handler — update local cached state for HUD rendering
+                        // Client handler — update local cached state for HUD/overlay rendering
                         (payload, ctx) -> {
-                            // Client-side: store Hallowed state locally (Phase 2 HUD will read this)
                             LOGGER.debug("[Hallowed] Received state sync from server: isHallowed={}", payload.isHallowed());
+                            if (FMLEnvironment.dist == Dist.CLIENT) {
+                                HallowedClientHandlers.handleSync(payload);
+                            }
                         },
                         // Server handler — not used; state changes originate on server
                         (payload, ctx) -> {}
@@ -44,8 +50,6 @@ public final class HallowedNetworking {
         );
 
         // Server → Client: full Hallowed player list for the Resurrection GUI.
-        // Registered here so the packet type is known on both sides; the client
-        // receives list data via the menu extra-data buffer when the GUI opens.
         registrar.playToClient(
                 ResurrectionListPayload.TYPE,
                 ResurrectionListPayload.STREAM_CODEC,
@@ -64,20 +68,47 @@ public final class HallowedNetworking {
         registrar.playToClient(
                 YouDiedOverlayPayload.TYPE,
                 YouDiedOverlayPayload.STREAM_CODEC,
+                (payload, ctx) ->
+                        LOGGER.debug("[Hallowed] Received YouDied overlay packet: show={}", payload.show())
+        );
+
+        // Server → Client: resurrection visual/audio effects
+        registrar.playToClient(
+                ResurrectionEffectPayload.TYPE,
+                ResurrectionEffectPayload.STREAM_CODEC,
                 (payload, ctx) -> {
-                    // Client-side: set a local flag for the You Died overlay renderer (Phase 4).
-                    // If You Died mod is not present, this packet is silently ignored.
-                    LOGGER.debug("[Hallowed] Received YouDied overlay packet: show={}", payload.show());
+                    if (FMLEnvironment.dist == Dist.CLIENT) {
+                        HallowedClientHandlers.handleResurrectionEffect(payload);
+                    }
                 }
         );
     }
 
+    // -------------------------------------------------------------------------
+    // Server-side send helpers
+    // -------------------------------------------------------------------------
+
     /**
-     * Sends a state-sync packet to the given player.
+     * Sends a full state-sync packet to the given player.
      * Must be called on the server thread.
      */
     public static void syncToPlayer(ServerPlayer player) {
         HallowedPlayerData data = player.getData(HallowedAttachments.HALLOWED_DATA);
-        PacketDistributor.sendToPlayer(player, new HallowedSyncPayload(data.isHallowed()));
+        PacketDistributor.sendToPlayer(player, new HallowedSyncPayload(
+                data.isHallowed(),
+                HallowedConfig.SERVER.isBlueOverlayEnabled(),
+                (float) HallowedConfig.SERVER.getOverlayIntensity(),
+                HallowedConfig.SERVER.isSpectralRendering()
+        ));
+    }
+
+    /**
+     * Broadcasts a resurrection effect payload to all players tracking the
+     * given position. Call from the server thread after a successful resurrection.
+     */
+    public static void sendResurrectionEffect(ServerPlayer resurrected) {
+        ResurrectionEffectPayload payload = new ResurrectionEffectPayload(
+                resurrected.getX(), resurrected.getY(), resurrected.getZ());
+        PacketDistributor.sendToPlayersTrackingEntityAndSelf(resurrected, payload);
     }
 }
