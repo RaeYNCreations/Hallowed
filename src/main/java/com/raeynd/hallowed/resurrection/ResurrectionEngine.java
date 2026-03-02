@@ -11,9 +11,11 @@ import com.raeynd.hallowed.data.HallowedRecord;
 import com.raeynd.hallowed.data.HallowedSavedData;
 import com.raeynd.hallowed.network.HallowedNetworking;
 import com.raeynd.hallowed.util.HallowedAudit;
+import com.raeynd.hallowed.util.HallowedSounds;
 import io.github.lightman314.lightmanscurrency.api.money.value.MoneyValue;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundSource;
 import org.slf4j.Logger;
 
 import java.util.Optional;
@@ -102,7 +104,16 @@ public final class ResurrectionEngine {
                 savedData.markResurrected(uuid);
                 player.setData(HallowedAttachments.HALLOWED_DATA, HallowedPlayerData.DEFAULT);
                 player.setHealth(player.getMaxHealth());
+
+                // G8: Revoke flight/noclip granted during Hallowed state
+                revokeFlightAndNoclip(player);
+
                 HallowedNetworking.syncToPlayer(player);
+
+                // G4 + G7: Resurrection VFX and sound
+                HallowedNetworking.sendResurrectionEffect(player);
+                player.serverLevel().playSound(null, player.getX(), player.getY(), player.getZ(),
+                        HallowedSounds.RESURRECTION_SUCCESS.get(), SoundSource.PLAYERS, 1.0f, 1.0f);
 
                 player.sendSystemMessage(Component.translatable("hallowed.resurrection.success.self"));
 
@@ -182,7 +193,16 @@ public final class ResurrectionEngine {
                     savedData.markResurrected(targetUUID);
                     target.setData(HallowedAttachments.HALLOWED_DATA, HallowedPlayerData.DEFAULT);
                     target.setHealth(target.getMaxHealth());
+
+                    // G8: Revoke flight/noclip granted during Hallowed state
+                    revokeFlightAndNoclip(target);
+
                     HallowedNetworking.syncToPlayer(target);
+
+                    // G4 + G7: Resurrection VFX and sound
+                    HallowedNetworking.sendResurrectionEffect(target);
+                    target.serverLevel().playSound(null, target.getX(), target.getY(), target.getZ(),
+                            HallowedSounds.RESURRECTION_SUCCESS.get(), SoundSource.PLAYERS, 1.0f, 1.0f);
 
                     target.sendSystemMessage(Component.translatable(
                             "hallowed.resurrection.success.target",
@@ -214,5 +234,24 @@ public final class ResurrectionEngine {
         }
 
         return ResurrectionResult.SUCCESS;
+    }
+
+    // -------------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * G8: Revokes flight and noclip abilities that were granted when the player
+     * entered the Hallowed state. Called on all resurrection paths.
+     */
+    private static void revokeFlightAndNoclip(ServerPlayer player) {
+        if (HallowedConfig.SERVER.isAllowFlight()) {
+            player.getAbilities().mayfly = false;
+            player.getAbilities().flying = false;
+            player.onUpdateAbilities();
+        }
+        if (HallowedConfig.SERVER.isAllowNoclip()) {
+            player.noPhysics = false;
+        }
     }
 }

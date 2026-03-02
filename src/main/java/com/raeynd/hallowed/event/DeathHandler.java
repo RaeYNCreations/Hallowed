@@ -10,6 +10,8 @@ import com.raeynd.hallowed.data.HallowedSavedData;
 import com.raeynd.hallowed.network.HallowedNetworking;
 import com.raeynd.hallowed.util.HallowedAudit;
 import com.raeynd.hallowed.util.RespawnMode;
+import com.raeynd.hallowed.util.HallowedSounds;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
@@ -164,6 +166,19 @@ public final class DeathHandler {
 
         // Sync new state to client
         HallowedNetworking.syncToPlayer(player);
+
+        // G8: Grant flight/noclip if configured
+        if (HallowedConfig.SERVER.isAllowFlight()) {
+            player.getAbilities().mayfly = true;
+            player.onUpdateAbilities();
+        }
+        if (HallowedConfig.SERVER.isAllowNoclip()) {
+            player.noPhysics = true;
+        }
+
+        // G7: Play become_hallowed sound
+        player.serverLevel().playSound(null, player.getX(), player.getY(), player.getZ(),
+                HallowedSounds.BECOME_HALLOWED.get(), SoundSource.PLAYERS, 1.0f, 1.0f);
 
         HallowedAudit.logStateTransition(player.getGameProfile().getName(), player.getUUID(),
                 "ALIVE", "HALLOWED", "death");

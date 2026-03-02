@@ -1,6 +1,7 @@
 package com.raeynd.hallowed.event;
 
 import com.mojang.logging.LogUtils;
+import com.raeynd.hallowed.HallowedConfig;
 import com.raeynd.hallowed.bonfire.BonfireHelper;
 import com.raeynd.hallowed.data.HallowedAttachments;
 import com.raeynd.hallowed.data.HallowedPlayerData;
@@ -80,6 +81,15 @@ public final class PlayerConnectionHandler {
                 player.sendSystemMessage(Component.translatable("hallowed.resurrection.success.on_login"));
                 return;
             }
+
+            // G8: Re-apply flight/noclip if the player is still Hallowed and config allows
+            if (HallowedConfig.SERVER.isAllowFlight()) {
+                player.getAbilities().mayfly = true;
+                player.onUpdateAbilities();
+            }
+            if (HallowedConfig.SERVER.isAllowNoclip()) {
+                player.noPhysics = true;
+            }
         }
     }
 
@@ -150,6 +160,17 @@ public final class PlayerConnectionHandler {
         player.setData(HallowedAttachments.HALLOWED_DATA, HallowedPlayerData.DEFAULT);
         savedData.markResurrected(player.getUUID());
         player.setHealth(player.getMaxHealth());
+
+        // G8: Revoke flight/noclip granted during Hallowed state
+        if (HallowedConfig.SERVER.isAllowFlight()) {
+            player.getAbilities().mayfly = false;
+            player.getAbilities().flying = false;
+            player.onUpdateAbilities();
+        }
+        if (HallowedConfig.SERVER.isAllowNoclip()) {
+            player.noPhysics = false;
+        }
+
         HallowedNetworking.syncToPlayer(player);
         LOGGER.info("[Hallowed] {} has been resurrected.", player.getGameProfile().getName());
     }
