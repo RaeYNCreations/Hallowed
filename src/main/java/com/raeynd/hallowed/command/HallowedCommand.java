@@ -109,8 +109,14 @@ public final class HallowedCommand {
 
     private static int executeReload(CommandContext<CommandSourceStack> ctx) {
         // NeoForge config reloads automatically on file change; this command is a manual trigger point.
-        ctx.getSource().sendSuccess(() -> Component.translatable("hallowed.command.reload.success"), true);
-        LOGGER.info("[Hallowed] Config reload requested by {}.", ctx.getSource().getTextName());
+        ServerLevel level = ctx.getSource().getLevel();
+        HallowedSavedData savedData = HallowedSavedData.get(level);
+        int count = savedData.getHallowedPlayers().size();
+        savedData.recalculateAllCosts();
+        ctx.getSource().sendSuccess(() -> Component.translatable(
+                "hallowed.command.reload.recalculated", count), true);
+        LOGGER.info("[Hallowed] Config reload requested by {}. Costs recalculated for {} player(s).",
+                ctx.getSource().getTextName(), count);
         return 1;
     }
 

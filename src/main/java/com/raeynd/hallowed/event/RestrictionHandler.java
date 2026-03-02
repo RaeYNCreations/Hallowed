@@ -5,6 +5,7 @@ import com.raeynd.hallowed.HallowedConfig;
 import com.raeynd.hallowed.bonfire.BonfireHelper;
 import com.raeynd.hallowed.currency.CurrencyService;
 import com.raeynd.hallowed.data.HallowedAttachments;
+import com.raeynd.hallowed.gui.ResurrectionMenu;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -194,10 +195,37 @@ public final class RestrictionHandler {
     }
 
     // -------------------------------------------------------------------------
+    // Container open prevention
+    // -------------------------------------------------------------------------
+
+    @SubscribeEvent
+    public void onContainerOpen(PlayerContainerEvent.Open event) {
+        Player player = event.getEntity();
+        if (!isHallowed(player)) return;
+        // Allow the Resurrection GUI so Hallowed players can see resurrection options
+        if (event.getContainer() instanceof ResurrectionMenu) return;
+        player.closeContainer();
+        LOGGER.debug("[Hallowed] Closed container for Hallowed player {}.", player.getGameProfile().getName());
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
+    /**
+     * Returns {@code true} if the player is currently in the Hallowed state.
+     *
+     * <p>Creative-mode operators bypass all Hallowed restrictions when
+     * {@code admin.allow_commands} is enabled.
+     */
     private static boolean isHallowed(Player player) {
-        return player.getData(HallowedAttachments.HALLOWED_DATA).isHallowed();
+        if (!player.getData(HallowedAttachments.HALLOWED_DATA).isHallowed()) return false;
+        // 3I: OP creative players bypass restrictions when allow_commands is true
+        if (HallowedConfig.SERVER.isAllowCommands()
+                && player.isCreative()
+                && player.hasPermissions(2)) {
+            return false;
+        }
+        return true;
     }
 }

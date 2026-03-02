@@ -59,6 +59,17 @@ public final class HallowedNetworking {
                 ResurrectionRequestPayload.STREAM_CODEC,
                 ResurrectionRequestPayload::handleServer
         );
+
+        // Server → Client: You Died overlay trigger (optional integration)
+        registrar.playToClient(
+                YouDiedOverlayPayload.TYPE,
+                YouDiedOverlayPayload.STREAM_CODEC,
+                (payload, ctx) -> {
+                    // Client-side: set a local flag for the You Died overlay renderer (Phase 4).
+                    // If You Died mod is not present, this packet is silently ignored.
+                    LOGGER.debug("[Hallowed] Received YouDied overlay packet: show={}", payload.show());
+                }
+        );
     }
 
     /**
