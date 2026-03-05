@@ -1,14 +1,13 @@
 package com.raeyncraft.hallowed.network;
 
 import com.raeyncraft.hallowed.Hallowed;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
 
 /**
  * Server → Client payload that carries the list of currently Hallowed players.
@@ -19,7 +18,7 @@ public record ResurrectionListPayload(List<Entry> entries) implements CustomPack
     public static final CustomPacketPayload.Type<ResurrectionListPayload> TYPE =
             new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(Hallowed.MOD_ID, "resurrection_list"));
 
-    public static final StreamCodec<FriendlyByteBuf, ResurrectionListPayload> STREAM_CODEC =
+            public static final StreamCodec<FriendlyByteBuf, ResurrectionListPayload> STREAM_CODEC =
             StreamCodec.of(
                     (buf, payload) -> {
                         buf.writeInt(payload.entries().size());
@@ -29,6 +28,7 @@ public record ResurrectionListPayload(List<Entry> entries) implements CustomPack
                             buf.writeBoolean(e.online());
                             buf.writeInt(e.coinsRequired());
                             buf.writeLong(e.timeOfDeath());
+                            buf.writeUtf(e.costDisplay());
                         }
                     },
                     buf -> {
@@ -40,7 +40,8 @@ public record ResurrectionListPayload(List<Entry> entries) implements CustomPack
                                     buf.readUtf(),
                                     buf.readBoolean(),
                                     buf.readInt(),
-                                    buf.readLong()
+                                    buf.readLong(),
+                                    buf.readUtf()
                             ));
                         }
                         return new ResurrectionListPayload(list);
@@ -61,5 +62,5 @@ public record ResurrectionListPayload(List<Entry> entries) implements CustomPack
      * @param coinsRequired coin cost for resurrection
      * @param timeOfDeath   epoch-millis of the death event
      */
-    public record Entry(UUID uuid, String username, boolean online, int coinsRequired, long timeOfDeath) {}
+    public record Entry(UUID uuid, String username, boolean online, int coinsRequired, long timeOfDeath, String costDisplay) {}
 }

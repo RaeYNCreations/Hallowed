@@ -2,6 +2,9 @@ package com.raeyncraft.hallowed.gui;
 
 import com.raeyncraft.hallowed.network.ResurrectionListPayload;
 import com.raeyncraft.hallowed.network.ResurrectionRequestPayload;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -9,10 +12,6 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 import net.neoforged.neoforge.network.PacketDistributor;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
 
 /**
  * Client-side Resurrection GUI.
@@ -105,7 +104,11 @@ public final class ResurrectionScreen extends AbstractContainerScreen<Resurrecti
             if (!query.isEmpty() && !e.username().toLowerCase(Locale.ROOT).contains(query)) continue;
             filtered.add(e);
         }
-        resurrectButton.active = selectedIndex >= 0 && selectedIndex < filtered.size();
+        selectedIndex = -1;
+        if (resurrectButton != null) {
+            resurrectButton.active = false;
+            resurrectButton.setMessage(Component.translatable("hallowed.gui.resurrection.confirm"));
+        }
     }
 
     @Override
@@ -137,6 +140,10 @@ public final class ResurrectionScreen extends AbstractContainerScreen<Resurrecti
             if (clicked < filtered.size()) {
                 selectedIndex = clicked;
                 resurrectButton.active = true;
+                resurrectButton.setMessage(Component.translatable(
+                        "hallowed.gui.resurrection.confirm",
+                        filtered.get(selectedIndex).username(),
+                        filtered.get(selectedIndex).costDisplay()));
             }
         }
         return super.mouseClicked(mouseX, mouseY, button);
@@ -197,8 +204,7 @@ public final class ResurrectionScreen extends AbstractContainerScreen<Resurrecti
             graphics.drawString(font, entry.username(), x + 12, rowY + 6, 0xFFFFFF, false);
 
             // Cost
-            String costStr = Component.translatable(
-                    "hallowed.gui.resurrection.cost", entry.coinsRequired()).getString();
+            String costStr = entry.costDisplay();
             int costWidth = font.width(costStr);
             graphics.drawString(font, costStr, leftPos + GUI_WIDTH - 10 - costWidth, rowY + 6, 0xFFD700, false);
 
@@ -254,8 +260,8 @@ public final class ResurrectionScreen extends AbstractContainerScreen<Resurrecti
         graphics.renderOutline(cx - dw / 2, cy - dh / 2, dw, dh, 0xFFCCCCCC);
 
         String confirmText = Component.translatable(
-                "hallowed.gui.resurrection.confirm",
-                target.username(), target.coinsRequired()).getString();
+            "hallowed.gui.resurrection.confirm",
+            target.username(), target.costDisplay()).getString();
         graphics.drawCenteredString(font, confirmText, cx, cy - dh / 2 + 8, 0xFFFFFF);
     }
 

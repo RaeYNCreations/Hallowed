@@ -1,19 +1,14 @@
 package com.raeyncraft.hallowed.client;
 
+import com.mojang.logging.LogUtils;
 import com.raeyncraft.hallowed.network.HallowedSyncPayload;
 import com.raeyncraft.hallowed.network.ResurrectionEffectPayload;
-import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.particles.ParticleTypes;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import org.slf4j.Logger;
 
-/**
- * Client-only network handlers for Hallowed payloads.
- * Kept in a separate class so that client-only imports ({@code Minecraft},
- * particle types, etc.) are never referenced by the shared networking class.
- */
 @OnlyIn(Dist.CLIENT)
 public final class HallowedClientHandlers {
 
@@ -21,16 +16,13 @@ public final class HallowedClientHandlers {
 
     private HallowedClientHandlers() {}
 
-    /**
-     * Handles an incoming {@link HallowedSyncPayload} on the client thread.
-     * Updates {@link HallowedClientState} with the received values.
-     */
     public static void handleSync(HallowedSyncPayload payload) {
         HallowedClientState.update(
                 payload.isHallowed(),
                 payload.blueOverlayEnabled(),
                 payload.overlayIntensity(),
-                payload.spectralRendering()
+                payload.spectralRendering(),
+                payload.spectralAlpha()
         );
         // Close the death screen if we're now in the Hallowed state
         if (payload.isHallowed()) {
@@ -42,10 +34,6 @@ public final class HallowedClientHandlers {
         LOGGER.debug("[Hallowed] Client state updated — isHallowed={}", payload.isHallowed());
     }
 
-    /**
-     * Handles an incoming {@link ResurrectionEffectPayload} on the client thread.
-     * Spawns a burst of end-rod particles at the resurrection position.
-     */
     public static void handleResurrectionEffect(ResurrectionEffectPayload payload) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) return;

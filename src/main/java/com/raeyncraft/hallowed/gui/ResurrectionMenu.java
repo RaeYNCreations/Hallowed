@@ -67,9 +67,10 @@ public final class ResurrectionMenu extends AbstractContainerMenu {
             buf.writeBoolean(e.online());
             buf.writeInt(e.coinsRequired());
             buf.writeLong(e.timeOfDeath());
+            buf.writeUtf(e.costDisplay());
         }
     }
-
+    
     private static List<ResurrectionListPayload.Entry> readEntries(FriendlyByteBuf buf) {
         int size = buf.readInt();
         List<ResurrectionListPayload.Entry> list = new ArrayList<>(size);
@@ -79,7 +80,8 @@ public final class ResurrectionMenu extends AbstractContainerMenu {
                     buf.readUtf(),
                     buf.readBoolean(),
                     buf.readInt(),
-                    buf.readLong()
+                    buf.readLong(),
+                    buf.readUtf()
             ));
         }
         return list;

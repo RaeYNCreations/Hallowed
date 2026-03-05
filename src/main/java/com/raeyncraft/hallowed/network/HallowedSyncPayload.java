@@ -13,12 +13,14 @@ import net.minecraft.resources.ResourceLocation;
  * @param blueOverlayEnabled Whether the blue vignette overlay is enabled.
  * @param overlayIntensity   Intensity of the blue overlay (0.0–1.0).
  * @param spectralRendering  Whether spectral/translucent rendering is enabled.
+ * @param spectralAlpha      Translucency level of the spectral effect (0.0-1.0).
  */
 public record HallowedSyncPayload(
         boolean isHallowed,
         boolean blueOverlayEnabled,
         float overlayIntensity,
-        boolean spectralRendering
+        boolean spectralRendering,
+        float spectralAlpha
 ) implements CustomPacketPayload {
 
     public static final CustomPacketPayload.Type<HallowedSyncPayload> TYPE =
@@ -31,12 +33,14 @@ public record HallowedSyncPayload(
                         buf.writeBoolean(payload.blueOverlayEnabled());
                         buf.writeFloat(payload.overlayIntensity());
                         buf.writeBoolean(payload.spectralRendering());
+                        buf.writeFloat(payload.spectralAlpha());
                     },
                     buf -> new HallowedSyncPayload(
                             buf.readBoolean(),
                             buf.readBoolean(),
                             buf.readFloat(),
-                            buf.readBoolean()
+                            buf.readBoolean(),
+                            buf.readFloat()
                     )
             );
 

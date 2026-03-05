@@ -5,6 +5,8 @@ import com.raeyncraft.hallowed.data.HallowedAttachments;
 import com.raeyncraft.hallowed.data.HallowedPlayerData;
 import com.raeyncraft.hallowed.data.HallowedSavedData;
 import com.raeyncraft.hallowed.gui.ResurrectionMenuProvider;
+import com.raeyncraft.hallowed.resurrection.ResurrectionEngine;
+import com.raeyncraft.hallowed.resurrection.ResurrectionResult;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -46,21 +48,40 @@ public final class BonfireInteractionHandler {
 
         if (!BonfireHelper.isLitBonfire(level, event.getPos())) return;
 
-        if (player.isShiftKeyDown()) {
-            // Sneak + right-click → open Resurrection GUI for everyone
+        boolean isHallowed = player.getData(HallowedAttachments.HALLOWED_DATA.get()).isHallowed();
+
+        if (isHallowed) {
+            // Hallowed player right-clicks bonfire → attempt silent self-resurrection, no menu
+            event.setCanceled(true);
+
+            UUID uuid = player.getUUID();
+            long now = System.currentTimeMillis();
+            if (now - cooldowns.getOrDefault(uuid, 0L) < COOLDOWN_MS) {
+                LOGGER.debug("[Hallowed] Rate-limited resurrection attempt from {}.", player.getGameProfile().getName());
+                return;
+            }
+            cooldowns.put(uuid, now);
+
+            ResurrectionResult result = ResurrectionEngine.attemptSelfResurrection(serverPlayer);
+            LOGGER.debug("[Hallowed] Self-resurrection attempt for {} at bonfire {}: {}",
+                    player.getGameProfile().getName(), event.getPos(), result);
+
+        } else if (player.isShiftKeyDown()) {
+            // Living player sneak + right-click → open Resurrection GUI (always)
             event.setCanceled(true);
             HallowedSavedData savedData = HallowedSavedData.get(level);
             serverPlayer.openMenu(new ResurrectionMenuProvider(savedData),
                     (RegistryFriendlyByteBuf buf) -> ResurrectionMenuProvider.writeExtraData(savedData, buf));
 
         } else {
-            // Normal right-click → register bonfire as respawn point for everyone,
+            // Living player normal right-click → register bonfire as respawn point,
             // do NOT cancel so the vanilla Bonfires GUI opens normally
             HallowedPlayerData current = player.getData(HallowedAttachments.HALLOWED_DATA.get());
             HallowedPlayerData updated = current.withLastBonfire(event.getPos(), level.dimension());
             player.setData(HallowedAttachments.HALLOWED_DATA.get(), updated);
             LOGGER.info("[Hallowed] {} registered bonfire at {} in {}",
                     player.getGameProfile().getName(), event.getPos(), level.dimension().location());
+            // No cancel — vanilla bonfire menu opens as normal
         }
     }
 }

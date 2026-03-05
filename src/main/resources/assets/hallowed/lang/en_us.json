@@ -34,7 +34,7 @@
   "hallowed.resurrection.success.target": "You have been resurrected by %s!",
   "hallowed.resurrection.fail.not_hallowed": "You are not in the Hallowed state.",
   "hallowed.resurrection.fail.not_at_bonfire": "You must be at a lit Bonfire to resurrect.",
-  "hallowed.resurrection.fail.insufficient_funds": "Insufficient coins. Required: %s",
+  "hallowed.resurrection.fail.insufficient_funds": "Insufficient souls. Required: %s",
   "hallowed.resurrection.fail.delay": "You must wait %d more seconds before you can be resurrected.",
   "hallowed.resurrection.fail.already_alive": "That player is already alive.",
   "hallowed.resurrection.offline": "%s will be resurrected on next login.",

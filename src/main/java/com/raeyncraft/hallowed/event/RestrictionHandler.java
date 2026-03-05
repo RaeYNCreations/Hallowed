@@ -28,8 +28,13 @@ import org.slf4j.Logger;
 
 /**
  * Enforces all Hallowed-state restrictions on the server side.
- * All enforcement is done by cancelling relevant NeoForge events.
- * Client-side events are ignored (server-authoritative).
+ *
+ * <p>Loot pickup logic:
+ * <ul>
+ *   <li>allow_loot=false  → no pickups at all (not even coins)</li>
+ *   <li>allow_loot=true, allow_only_coin_loot=true  → coins only</li>
+ *   <li>allow_loot=true, allow_only_coin_loot=false → anything</li>
+ * </ul>
  */
 public final class RestrictionHandler {
 
@@ -43,6 +48,7 @@ public final class RestrictionHandler {
     public void onBlockBreak(BlockEvent.BreakEvent event) {
         Player player = event.getPlayer();
         if (!isHallowed(player)) return;
+        if (HallowedConfig.SERVER.isAllowBlockBreak()) return;
         event.setCanceled(true);
         LOGGER.debug("[Hallowed] Blocked block-break for {}.", player.getGameProfile().getName());
     }
@@ -51,6 +57,7 @@ public final class RestrictionHandler {
     public void onBlockPlace(BlockEvent.EntityPlaceEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
         if (!isHallowed(player)) return;
+        if (HallowedConfig.SERVER.isAllowBlockPlace()) return;
         event.setCanceled(true);
         LOGGER.debug("[Hallowed] Blocked block-place for {}.", player.getGameProfile().getName());
     }
@@ -59,17 +66,10 @@ public final class RestrictionHandler {
     public void onPlayerInteractBlock(PlayerInteractEvent.RightClickBlock event) {
         Player player = event.getEntity();
         if (player.level().isClientSide()) return;
-
-        // Allow all players (including Hallowed) to interact with lit Bonfires;
-        // BonfireInteractionHandler handles the actual logic for each case.
         if (BonfireHelper.isLitBonfire(player.level(), event.getPos())) return;
-
         if (!isHallowed(player)) return;
-
-        // Allow doors, trapdoors, fence gates, levers, buttons
         Block block = player.level().getBlockState(event.getPos()).getBlock();
         if (isAllowedInteraction(block)) return;
-
         event.setCanceled(true);
         LOGGER.debug("[Hallowed] Blocked right-click block for {}.", player.getGameProfile().getName());
     }
@@ -107,9 +107,24 @@ public final class RestrictionHandler {
     public void onItemPickup(ItemEntityPickupEvent.Pre event) {
         Player player = event.getPlayer();
         if (!isHallowed(player)) return;
-        if (CurrencyService.isCoinItem(player, event.getItemEntity().getItem())) return;
-        event.setCanPickup(net.neoforged.neoforge.common.util.TriState.FALSE);
-        LOGGER.debug("[Hallowed] Blocked item-pickup for {}.", player.getGameProfile().getName());
+
+        // allow_loot=false → block ALL pickups including coins
+        if (!HallowedConfig.SERVER.isAllowLoot()) {
+            event.setCanPickup(net.neoforged.neoforge.common.util.TriState.FALSE);
+            LOGGER.debug("[Hallowed] Blocked item-pickup (allow_loot=false) for {}.", player.getGameProfile().getName());
+            return;
+        }
+
+        // allow_loot=true, allow_only_coin_loot=true → coins only
+        if (HallowedConfig.SERVER.isAllowOnlyCoinLoot()) {
+            if (!CurrencyService.isCoinItem(player, event.getItemEntity().getItem())) {
+                event.setCanPickup(net.neoforged.neoforge.common.util.TriState.FALSE);
+                LOGGER.debug("[Hallowed] Blocked non-coin pickup for {}.", player.getGameProfile().getName());
+            }
+            return;
+        }
+
+        // allow_loot=true, allow_only_coin_loot=false → allow everything (fall through)
     }
 
     // -------------------------------------------------------------------------
@@ -142,7 +157,6 @@ public final class RestrictionHandler {
             return;
         }
 
-        // Combat enabled: only bare-fist attacks
         ItemStack heldItem = attacker.getMainHandItem();
         if (!heldItem.isEmpty()) {
             event.setCanceled(true);
@@ -150,7 +164,6 @@ public final class RestrictionHandler {
             return;
         }
 
-        // hostile_only check
         if (cfg.isHostileOnly() && !(event.getTarget() instanceof Monster)) {
             event.setCanceled(true);
             LOGGER.debug("[Hallowed] Blocked attack on non-hostile for {}.", attacker.getGameProfile().getName());
@@ -162,8 +175,6 @@ public final class RestrictionHandler {
         if (!(event.getSource().getEntity() instanceof Player attacker)) return;
         if (!isHallowed(attacker)) return;
         if (!HallowedConfig.SERVER.isCombatEnabled()) return;
-
-        // Apply damage multiplier
         float scaled = event.getAmount() * (float) HallowedConfig.SERVER.getDamageMultiplier();
         event.setAmount(scaled);
     }
@@ -189,7 +200,7 @@ public final class RestrictionHandler {
     }
 
     // -------------------------------------------------------------------------
-    // XP pickup (general Hallowed restriction)
+    // XP pickup
     // -------------------------------------------------------------------------
 
     @SubscribeEvent
@@ -208,7 +219,6 @@ public final class RestrictionHandler {
     public void onContainerOpen(PlayerContainerEvent.Open event) {
         Player player = event.getEntity();
         if (!isHallowed(player)) return;
-        // Allow the Resurrection GUI so Hallowed players can see resurrection options
         if (event.getContainer() instanceof ResurrectionMenu) return;
         player.closeContainer();
         LOGGER.debug("[Hallowed] Closed container for Hallowed player {}.", player.getGameProfile().getName());
@@ -218,15 +228,8 @@ public final class RestrictionHandler {
     // Helpers
     // -------------------------------------------------------------------------
 
-    /**
-     * Returns {@code true} if the player is currently in the Hallowed state.
-     *
-     * <p>Creative-mode operators bypass all Hallowed restrictions when
-     * {@code admin.allow_commands} is enabled.
-     */
     private static boolean isHallowed(Player player) {
         if (!player.getData(HallowedAttachments.HALLOWED_DATA.get()).isHallowed()) return false;
-        // 3I: OP creative players bypass restrictions when allow_commands is true
         if (HallowedConfig.SERVER.isAllowCommands()
                 && player.isCreative()
                 && player.hasPermissions(2)) {

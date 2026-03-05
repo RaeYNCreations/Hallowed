@@ -1,17 +1,17 @@
 package com.raeyncraft.hallowed.gui;
 
-import com.raeyncraft.hallowed.data.HallowedRecord;
+import com.raeyncraft.hallowed.currency.ResurrectionCostCalculator;
 import com.raeyncraft.hallowed.data.HallowedSavedData;
 import com.raeyncraft.hallowed.network.ResurrectionListPayload;
+import io.github.lightman314.lightmanscurrency.api.money.value.MoneyValue;
+import java.util.List;
+import java.util.stream.Collectors;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Server-side {@link MenuProvider} that opens {@link ResurrectionMenu} for a living player
@@ -47,12 +47,13 @@ public final class ResurrectionMenuProvider implements MenuProvider {
 
     private static List<ResurrectionListPayload.Entry> buildEntries(HallowedSavedData savedData) {
         return savedData.getHallowedPlayers().stream()
-                .map(r -> new ResurrectionListPayload.Entry(
-                        r.getUuid(),
-                        r.getUsername(),
-                        r.isCurrentlyOnline(),
-                        r.getCoinsRequired(),
-                        r.getTimeOfDeath()))
+                .map(r -> {
+                    MoneyValue cost = ResurrectionCostCalculator.calculateOtherCostAsValue(r.getXpAtDeath());
+                    String costDisplay = cost.getText(net.minecraft.network.chat.Component.empty()).getString();
+                    return new ResurrectionListPayload.Entry(
+                            r.getUuid(), r.getUsername(), r.isCurrentlyOnline(),
+                            r.getCoinsRequired(), r.getTimeOfDeath(), costDisplay);
+                })
                 .collect(Collectors.toList());
     }
 }

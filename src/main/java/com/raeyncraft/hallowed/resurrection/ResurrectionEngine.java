@@ -91,7 +91,7 @@ public final class ResurrectionEngine {
                 if (!CurrencyService.withdrawFunds(player, cost)) {
                     savedData.setPendingResurrection(uuid, false);
                     player.sendSystemMessage(Component.translatable(
-                            "hallowed.resurrection.fail.insufficient_funds", cost.toString()));
+                            "hallowed.resurrection.fail.insufficient_funds", cost.getText(net.minecraft.network.chat.Component.empty())));
                     HallowedAudit.logResurrectionFailed(player.getGameProfile().getName(), uuid,
                             "INSUFFICIENT_FUNDS", "self");
                     return ResurrectionResult.INSUFFICIENT_FUNDS;
@@ -105,7 +105,7 @@ public final class ResurrectionEngine {
                 player.setData(HallowedAttachments.HALLOWED_DATA.get(), HallowedPlayerData.DEFAULT);
                 player.setHealth(player.getMaxHealth());
 
-                // G8: Revoke flight/noclip granted during Hallowed state
+                // Revoke flight granted during Hallowed state
                 revokeFlightAndNoclip(player);
 
                 HallowedNetworking.syncToPlayer(player);
@@ -176,7 +176,7 @@ public final class ResurrectionEngine {
                 if (!CurrencyService.withdrawFunds(resurrector, cost)) {
                     savedData.setPendingResurrection(targetUUID, false);
                     resurrector.sendSystemMessage(Component.translatable(
-                            "hallowed.resurrection.fail.insufficient_funds", cost.toString()));
+                            "hallowed.resurrection.fail.insufficient_funds", cost.getText(net.minecraft.network.chat.Component.empty())));
                     HallowedAudit.logResurrectionFailed(resurrector.getGameProfile().getName(), resurrector.getUUID(),
                             "INSUFFICIENT_FUNDS", record.getUsername());
                     return ResurrectionResult.INSUFFICIENT_FUNDS;
@@ -194,7 +194,7 @@ public final class ResurrectionEngine {
                     target.setData(HallowedAttachments.HALLOWED_DATA.get(), HallowedPlayerData.DEFAULT);
                     target.setHealth(target.getMaxHealth());
 
-                    // G8: Revoke flight/noclip granted during Hallowed state
+                    // Revoke flight granted during Hallowed state
                     revokeFlightAndNoclip(target);
 
                     HallowedNetworking.syncToPlayer(target);
@@ -241,7 +241,7 @@ public final class ResurrectionEngine {
     // -------------------------------------------------------------------------
 
     /**
-     * G8: Revokes flight and noclip abilities that were granted when the player
+     * Revokes flight abilities that were granted when the player
      * entered the Hallowed state. Called on all resurrection paths.
      */
     private static void revokeFlightAndNoclip(ServerPlayer player) {
@@ -249,9 +249,6 @@ public final class ResurrectionEngine {
             player.getAbilities().mayfly = false;
             player.getAbilities().flying = false;
             player.onUpdateAbilities();
-        }
-        if (HallowedConfig.SERVER.isAllowNoclip()) {
-            player.noPhysics = false;
         }
     }
 }

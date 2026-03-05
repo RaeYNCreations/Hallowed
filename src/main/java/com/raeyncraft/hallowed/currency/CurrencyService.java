@@ -17,14 +17,16 @@ public final class CurrencyService {
     public static boolean hasEnoughFunds(Player player, MoneyValue cost) {
         var handler = MoneyAPI.getApi().GetPlayersMoneyHandler(player);
         if (handler == null) return false;
+        // FIX: getStoredMoney() returns MoneyView, not an Iterable<MoneyValue>
+        // MoneyView.containsValue() checks if the stored money covers the given cost
         return handler.getStoredMoney().containsValue(cost);
     }
 
     public static boolean withdrawFunds(Player player, MoneyValue cost) {
         var handler = MoneyAPI.getApi().GetPlayersMoneyHandler(player);
         if (handler == null) return false;
-        MoneyValue simResult = handler.extractMoney(cost, true);
-        if (simResult.isEmpty()) return false;
+        // Use containsValue for the check instead of relying on simulation return value
+        if (!handler.getStoredMoney().containsValue(cost)) return false;
         handler.extractMoney(cost, false);
         return true;
     }
@@ -32,6 +34,7 @@ public final class CurrencyService {
     public static MoneyValue getPlayerBalance(Player player) {
         var handler = MoneyAPI.getApi().GetPlayersMoneyHandler(player);
         if (handler == null) return MoneyValue.empty();
+        // FIX: MoneyView has no .stream() — use allValues() which returns List<MoneyValue>
         return handler.getStoredMoney().allValues().stream()
                 .findFirst().orElse(MoneyValue.empty());
     }
